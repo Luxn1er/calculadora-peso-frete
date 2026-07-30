@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calculadora de Peso — Carga</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --bg: #f6f5f6;
+    --surface: #ffffff;
+    --surface-2: #f1eef0;
+    --border: #e2dee0;
+    --text: #221f21;
+    --muted: #7c7478;
+    --accent: #d42e3f;
+    --accent-dim: #f2b9c0;
+    --accent-ink: #ffffff;
+    --green: #16a34a;
+    --red: #dc2626;
+    --mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  html[data-theme="dark"]{
+    color-scheme: dark;
+    --bg: #170f11;
+    --surface: #221619;
+    --surface-2: #2b1a1f;
+    --border: #3c2429;
+    --text: #f1e9ea;
+    --muted: #a2898d;
+    --accent: #ff5468;
+    --accent-dim: #6e2530;
+    --accent-ink: #2a0509;
+    --green: #3ddc84;
+    --red: #ef5757;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 32px 16px 80px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .wrap{ max-width: 760px; margin: 0 auto; }
+
+  .brand-bar{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .brand-lockup{
+    display:flex;
+    align-items:center;
+    gap: 10px;
+  }
+  .brand-lockup .brand-name{
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+  }
+  .theme-toggle{
+    display:flex;
+    align-items:center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 7px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover{ border-color: var(--accent); color: var(--text); }
+
+  .eyebrow{
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  h1{
+    font-size: 26px;
+    margin: 0 0 28px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  h1 span{ color: var(--muted); font-weight: 500; }
+
+  /* ---- Gauge / display ---- */
+  .gauge-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .gauge-top{
+    display:flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .goal-field label{
+    display:block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .goal-field input{
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 18px;
+    padding: 8px 10px;
+    width: 150px;
+  }
+  .goal-field input:focus{ outline: none; border-color: var(--accent); }
+  .goal-field .unit{ color: var(--muted); font-family: var(--mono); font-size: 13px; margin-left: 6px; }
+
+  .readout{ text-align: right; }
+  .readout .val{
+    font-family: var(--mono);
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .readout .val small{ font-size: 18px; color: var(--muted); font-weight: 500; }
+  .readout .status{
+    font-family: var(--mono);
+    font-size: 12px;
+    margin-top: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  .bar-track{
+    position: relative;
+    height: 26px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .bar-fill{
+    height: 100%;
+    border-radius: 999px 0 0 999px;
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+    transition: width 0.35s ease, background 0.35s ease;
+  }
+  .bar-fill.reached{ background: linear-gradient(90deg, #1f6b46, var(--green)); }
+  .bar-fill.over{ background: linear-gradient(90deg, #7a1220, var(--red)); border-radius: 999px; }
+  .bar-marker{
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: var(--text);
+    opacity: 0.6;
+    left: 100%;
+  }
+
+  /* ---- Add material form ---- */
+  .form-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .form-title{
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 14px;
+  }
+  .form-grid{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 10px;
+  }
+  @media (max-width: 620px){
+    .form-grid{ grid-template-columns: 1fr 1fr; }
+  }
+  .field label{
+    display:block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .field select, .field input, .field textarea{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 9px 10px;
+  }
+  .field textarea{ resize: vertical; min-height: 60px; }
+  .field select:focus, .field input:focus, .field textarea:focus{ outline: none; border-color: var(--accent); }
+
+  .preview{
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+  .preview b{ color: var(--text); }
+
+  .add-btn{
+    margin-top: 14px;
+    width: 100%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 8px;
+    padding: 11px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  .add-btn:hover{ filter: brightness(1.08); }
+  .add-btn:disabled{ opacity: 0.4; cursor: not-allowed; }
+
+  /* ---- List ---- */
+  .list-card{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .list-header{
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .list-header .form-title{ margin: 0; }
+  .count-tag{
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .item-row{
+    display:flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+  }
+  .item-row:last-child{ border-bottom: none; }
+  .item-main .type-badge{
+    display:inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    padding: 2px 7px;
+    border-radius: 5px;
+    margin-right: 8px;
+  }
+  .item-main .type-badge.caixa{ color: var(--green); }
+  .item-main .dims{ color: var(--muted); font-size: 13px; }
+  .item-peso{
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .remove-btn{
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .remove-btn:hover{ border-color: var(--red); color: var(--red); }
+
+  .empty-state{
+    padding: 36px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ---- Fechar frete result ---- */
+  .fechar-headline{
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .fechar-headline .peso{
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .fechar-tag{
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  .fechar-tag.ok{ color: var(--green); border-color: var(--green); }
+  .fechar-tag.bad{ color: var(--red); border-color: var(--red); }
+  .fechar-section-title{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 16px 0 8px;
+  }
+  .fechar-line{
+    display:flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .fechar-line:last-child{ border-bottom: none; }
+  .fechar-line .label{ color: var(--text); }
+  .fechar-line .detail{ color: var(--muted); font-family: var(--mono); font-size: 12px; }
+  .fechar-empty{ font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand-bar">
+      <div class="brand-lockup">
+        <span class="brand-name">MRX</span>
+      </div>
+      <button class="theme-toggle" id="themeToggle" type="button">
+        <span id="themeToggleIcon">🌙</span> <span id="themeToggleLabel">Modo noturno</span>
+      </button>
+    </div>
+    <p class="eyebrow">Carga · Manaus</p>
+    <h1>Calculadora de Peso <span>— meta de carga</span></h1>
+
+    <div class="gauge-card">
+      <div class="gauge-top">
+        <div class="goal-field">
+          <label for="goal">Peso total a atingir</label>
+          <input type="number" id="goal" min="0" step="0.01" placeholder="0" />
+          <span class="unit">kg</span>
+        </div>
+        <div class="readout">
+          <div class="val" id="totalVal">0<small> kg</small></div>
+          <div class="status" id="statusText">defina a meta</div>
+        </div>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" id="barFill" style="width:0%"></div>
+        <div class="bar-marker"></div>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <p class="form-title">Adicionar material</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="tipo">Tipo</label>
+          <select id="tipo">
+            <option value="808C">808C</option>
+            <option value="808M">808M</option>
+            <option value="800XC">800XC</option>
+            <option value="913TT">913TT</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="larg">Largura (mm)</label>
+          <input type="number" id="larg" min="0" step="1" placeholder="ex: 320" />
+        </div>
+        <div class="field">
+          <label for="comp">Comprimento (mm)</label>
+          <input type="number" id="comp" min="0" step="1" placeholder="ex: 2000" />
+        </div>
+        <div class="field">
+          <label for="qtd">Quantidade</label>
+          <input type="number" id="qtd" min="1" step="1" value="1" />
+        </div>
+      </div>
+      <div class="preview" id="preview"></div>
+      <button class="add-btn" id="addBtn">Adicionar à carga</button>
+    </div>
+
+    <div class="form-card">
+      <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="field">
+          <label for="colarTipo">Tipo</label>
+          <select id="colarTipo">
+            <option value="808C">808C</option>
+            <option value="808M">808M</option>
+            <option value="800XC">800XC</option>
+            <option value="913TT">913TT</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="colarMetragem">Metragem (mm)</label>
+          <input type="number" id="colarMetragem" min="0" step="1" placeholder="ex: 2000" />
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label for="colarLista">Colar larguras</label>
+        <textarea id="colarLista" placeholder="197, 125, 130, 197, 197, 182, 119"></textarea>
+      </div>
+      <button class="add-btn" id="colarBtn" style="margin-top:14px;">Adicionar lista</button>
+    </div>
+
+    <div class="form-card">
+      <p class="form-title">Adicionar caixa</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="caixaTipo">Tamanho</label>
+          <select id="caixaTipo">
+            <option value="P">Caixa P</option>
+            <option value="M">Caixa M</option>
+            <option value="G">Caixa G</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="caixaQtd">Quantidade</label>
+          <input type="number" id="caixaQtd" min="1" step="1" value="1" />
+        </div>
+      </div>
+      <div class="preview" id="caixaPreview"></div>
+      <button class="add-btn" id="caixaAddBtn">Adicionar caixa à carga</button>
+    </div>
+
+    <div class="list-card">
+      <div class="list-header">
+        <p class="form-title">Itens na carga</p>
+        <span class="count-tag" id="countTag">0 bobinas · volume: 0 caixas</span>
+      </div>
+      <div id="listBody">
+        <div class="empty-state">Nenhum material adicionado ainda.</div>
+      </div>
+    </div>
+
+    <div class="form-card" style="margin-top:20px;">
+      <button class="add-btn" id="fecharBtn">Calcular fechamento</button>
+      <div id="fecharResult" style="margin-top:18px;"></div>
+    </div>
+
+    <div class="form-card" style="margin-top:20px;">
+      <button class="add-btn" id="exportBtn">Exportar Excel</button>
+    </div>
+  </div>
+
+<script>
+  // ---- modo noturno ----
+  function getTemaSalvo(){
+    try { return localStorage.getItem('mrx-theme'); }
+    catch (e){ return null; }
+  }
+  function salvarTema(tema){
+    try { localStorage.setItem('mrx-theme', tema); }
+    catch (e){ /* localStorage pode estar bloqueado (ex: aberto direto como arquivo local) */ }
+  }
+
+  (function initTheme(){
+    const salvo = getTemaSalvo();
+    const preferido = salvo || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    aplicarTema(preferido);
+  })();
+
+  function aplicarTema(tema){
+    document.documentElement.setAttribute('data-theme', tema);
+    salvarTema(tema);
+    const icon = document.getElementById('themeToggleIcon');
+    const label = document.getElementById('themeToggleLabel');
+    if (icon && label){
+      if (tema === 'dark'){
+        icon.textContent = '☀️';
+        label.textContent = 'Modo claro';
+      } else {
+        icon.textContent = '🌙';
+        label.textContent = 'Modo noturno';
+      }
+    }
+  }
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const atual = document.documentElement.getAttribute('data-theme') || 'light';
+    aplicarTema(atual === 'dark' ? 'light' : 'dark');
+  });
+
+  // Peso por m² de cada tipo (kg/m²) — mesma referência da planilha original
+  // Peso por m² recalibrado com a tabela de peso bruto real (mínimos quadrados a partir
+  // dos dados do usuário, jul/2026). 913TT não tem dado de referência ainda — mantido o
+  // valor original da planilha até termos peso real desse tipo pra calibrar.
+  const PESO_M2 = { '808C': 0.020289, '808M': 0.019287, '800XC': 0.030, '913TT': 0.0424 };
+  // núcleo/tubo por tipo (kg por mm de largura) — cada tipo com o seu, não é mais um valor único
+  const CORE_FACTOR = { '808C': 0.005801, '808M': 0.005801, '800XC': 0.003746, '913TT': 0.001214 };
+  const BOX_WEIGHTS = { P: 0.485, M: 0.621, G: 0.75 }; // kg por caixa vazia
+
+  let items = [];
+  let nextId = 1;
+
+  const els = {
+    goal: document.getElementById('goal'),
+    totalVal: document.getElementById('totalVal'),
+    statusText: document.getElementById('statusText'),
+    barFill: document.getElementById('barFill'),
+    tipo: document.getElementById('tipo'),
+    larg: document.getElementById('larg'),
+    comp: document.getElementById('comp'),
+    qtd: document.getElementById('qtd'),
+    preview: document.getElementById('preview'),
+    addBtn: document.getElementById('addBtn'),
+    listBody: document.getElementById('listBody'),
+    countTag: document.getElementById('countTag'),
+    colarTipo: document.getElementById('colarTipo'),
+    colarMetragem: document.getElementById('colarMetragem'),
+    colarLista: document.getElementById('colarLista'),
+    colarBtn: document.getElementById('colarBtn'),
+    caixaTipo: document.getElementById('caixaTipo'),
+    caixaQtd: document.getElementById('caixaQtd'),
+    caixaPreview: document.getElementById('caixaPreview'),
+    caixaAddBtn: document.getElementById('caixaAddBtn'),
+    fecharBtn: document.getElementById('fecharBtn'),
+    fecharResult: document.getElementById('fecharResult'),
+    exportBtn: document.getElementById('exportBtn'),
+  };
+
+  const MARGEM_FRETE = 15; // kg, pra mais ou pra menos
+  const ALTURA_MAX_CAIXA = 350; // mm
+
+  function calcPeso(tipo, larg, comp, qtd){
+    const m2 = (larg * qtd * comp) / 1000;
+    const pesoBase = PESO_M2[tipo] * m2;
+    const pesoNucleo = qtd * larg * CORE_FACTOR[tipo];
+    return { m2, peso: pesoBase + pesoNucleo };
+  }
+
+  function fmt(n){
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function updatePreview(){
+    const larg = parseFloat(els.larg.value);
+    const comp = parseFloat(els.comp.value);
+    const qtd = parseFloat(els.qtd.value);
+    const tipo = els.tipo.value;
+    if (larg > 0 && comp > 0 && qtd > 0){
+      const { m2, peso } = calcPeso(tipo, larg, comp, qtd);
+      els.preview.innerHTML = `${m2.toFixed(2)} m² · peso estimado: <b>${fmt(peso)} kg</b>`;
+      els.addBtn.disabled = false;
+    } else {
+      els.preview.innerHTML = '';
+      els.addBtn.disabled = true;
+    }
+  }
+
+  function unitCapacity(larg){
+    if (!(larg > 0)) return 1;
+    return Math.max(1, Math.floor(ALTURA_MAX_CAIXA / larg));
+  }
+
+  function updateCaixaPreview(){
+    const qtd = parseFloat(els.caixaQtd.value);
+    const tipo = els.caixaTipo.value;
+    if (qtd > 0){
+      const peso = BOX_WEIGHTS[tipo] * qtd;
+      els.caixaPreview.innerHTML = `peso estimado: <b>${fmt(peso)} kg</b>`;
+      els.caixaAddBtn.disabled = false;
+    } else {
+      els.caixaPreview.innerHTML = '';
+      els.caixaAddBtn.disabled = true;
+    }
+  }
+
+  function render(){
+    const total = items.reduce((s, it) => s + it.peso, 0);
+    const goal = parseFloat(els.goal.value) || 0;
+
+    els.totalVal.innerHTML = `${fmt(total)}<small> kg</small>`;
+    const totalBobinas = items.filter(it => it.kind === 'material').reduce((s, it) => s + it.qtd, 0);
+    const totalCaixas = items.filter(it => it.kind === 'caixa').reduce((s, it) => s + it.qtd, 0);
+    els.countTag.textContent = `${totalBobinas} bobina${totalBobinas === 1 ? '' : 's'} · volume: ${totalCaixas} caixa${totalCaixas === 1 ? '' : 's'}`;
+
+    if (goal > 0){
+      const pct = Math.min((total / goal) * 100, 100);
+      els.barFill.style.width = pct + '%';
+      const restante = goal - total;
+      if (restante > 0.005){
+        els.barFill.className = 'bar-fill';
+        els.statusText.style.color = 'var(--accent)';
+        els.statusText.textContent = `faltam ${fmt(restante)} kg para a meta`;
+      } else if (Math.abs(restante) <= 0.005){
+        els.barFill.className = 'bar-fill reached';
+        els.statusText.style.color = 'var(--green)';
+        els.statusText.textContent = 'meta atingida';
+      } else {
+        els.barFill.className = 'bar-fill over';
+        els.barFill.style.width = '100%';
+        els.statusText.style.color = 'var(--red)';
+        els.statusText.textContent = `${fmt(Math.abs(restante))} kg acima da meta`;
+      }
+    } else {
+      els.barFill.className = 'bar-fill';
+      els.barFill.style.width = '0%';
+      els.statusText.style.color = 'var(--muted)';
+      els.statusText.textContent = 'defina a meta';
+    }
+
+    if (items.length === 0){
+      els.listBody.innerHTML = '<div class="empty-state">Nenhum material adicionado ainda.</div>';
+      return;
+    }
+
+    els.listBody.innerHTML = items.map(it => {
+      if (it.kind === 'caixa'){
+        return `
+      <div class="item-row">
+        <div class="item-main">
+          <span class="type-badge caixa">Caixa ${it.tipo}</span>
+          <span class="dims">qtd ${it.qtd} · ${fmt(BOX_WEIGHTS[it.tipo])} kg/un</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="item-peso">${fmt(it.peso)} kg</span>
+          <button class="remove-btn" data-id="${it.id}" title="Remover">✕</button>
+        </div>
+      </div>`;
+      }
+      return `
+      <div class="item-row">
+        <div class="item-main">
+          <span class="type-badge">${it.tipo}</span>
+          <span class="dims">${it.larg}×${it.comp}mm · qtd ${it.qtd} · ${it.m2.toFixed(2)} m²</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span class="item-peso">${fmt(it.peso)} kg</span>
+          <button class="remove-btn" data-id="${it.id}" title="Remover">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-id'));
+        items = items.filter(it => it.id !== id);
+        render();
+      });
+    });
+  }
+
+  els.addBtn.addEventListener('click', () => {
+    const larg = parseFloat(els.larg.value);
+    const comp = parseFloat(els.comp.value);
+    const qtd = parseFloat(els.qtd.value);
+    const tipo = els.tipo.value;
+    if (!(larg > 0 && comp > 0 && qtd > 0)) return;
+
+    const { m2, peso } = calcPeso(tipo, larg, comp, qtd);
+    items.push({ id: nextId++, kind: 'material', tipo, larg, comp, qtd, m2, peso });
+
+    els.larg.value = '';
+    els.comp.value = '';
+    els.qtd.value = '1';
+    updatePreview();
+    render();
+    els.larg.focus();
+  });
+
+  els.caixaAddBtn.addEventListener('click', () => {
+    const qtd = parseFloat(els.caixaQtd.value);
+    const tipo = els.caixaTipo.value;
+    if (!(qtd > 0)) return;
+
+    const peso = BOX_WEIGHTS[tipo] * qtd;
+    items.push({ id: nextId++, kind: 'caixa', tipo, qtd, peso });
+
+    els.caixaQtd.value = '1';
+    updateCaixaPreview();
+    render();
+  });
+
+  [els.tipo, els.larg, els.comp, els.qtd].forEach(el => {
+    el.addEventListener('input', updatePreview);
+  });
+
+  els.colarBtn.addEventListener('click', () => {
+    const metragem = parseFloat(els.colarMetragem.value);
+    const tipo = els.colarTipo.value;
+    const valores = els.colarLista.value
+      .split(/[\s,;]+/)
+      .map(s => parseFloat(s.trim()))
+      .filter(n => !isNaN(n) && n > 0);
+    if (!(metragem > 0) || valores.length === 0) return;
+
+    const grupos = {};
+    valores.forEach(v => { grupos[v] = (grupos[v] || 0) + 1; });
+
+    Object.entries(grupos).forEach(([larg, qtd]) => {
+      const l = parseFloat(larg);
+      const { m2, peso } = calcPeso(tipo, l, metragem, qtd);
+      items.push({ id: nextId++, kind: 'material', tipo, larg: l, comp: metragem, qtd, m2, peso });
+    });
+
+    els.colarLista.value = '';
+    render();
+  });
+  [els.caixaTipo, els.caixaQtd].forEach(el => {
+    el.addEventListener('input', updateCaixaPreview);
+  });
+  els.goal.addEventListener('input', render);
+
+  function selecionarBobinasParaPeso(pool, pesoAlvo, lower, upper){
+    // busca (programação dinâmica, subset-sum) a combinação de bobinas cujo peso total
+    // fica o mais próximo possível do alvo, dentro da margem, usando o menor número de
+    // bobinas possível em caso de empate (menos bobinas = menos caixas necessárias).
+    const ESCALA = 10; // trabalha em unidades de 0.1kg pra virar problema inteiro
+    const pesos = pool.map(u => Math.max(1, Math.round(u.pesoUnit * ESCALA)));
+    const totalDisponivel = pesos.reduce((a, b) => a + b, 0);
+    const tetoUnidades = Math.min(Math.round(upper * ESCALA), totalDisponivel);
+
+    if (tetoUnidades <= 0 || pool.length === 0){
+      return { usadas: [], total: 0 };
+    }
+
+    const INF = Infinity;
+    const dp = new Array(tetoUnidades + 1).fill(INF); // menor nº de bobinas p/ atingir cada soma
+    const itemUsado = new Array(tetoUnidades + 1).fill(-1);
+    const somaAnterior = new Array(tetoUnidades + 1).fill(-1);
+    dp[0] = 0;
+
+    for (let i = 0; i < pesos.length; i++){
+      const w = pesos[i];
+      if (w > tetoUnidades) continue;
+      for (let s = tetoUnidades; s >= w; s--){
+        if (dp[s - w] !== INF && dp[s - w] + 1 < dp[s]){
+          dp[s] = dp[s - w] + 1;
+          itemUsado[s] = i;
+          somaAnterior[s] = s - w;
+        }
+      }
+    }
+
+    const pisoUnidades = Math.max(0, Math.round(lower * ESCALA));
+    const alvoUnidades = Math.round(pesoAlvo * ESCALA);
+
+    let melhorSoma = -1;
+    let melhorDiff = Infinity;
+    for (let s = pisoUnidades; s <= tetoUnidades; s++){
+      if (dp[s] === INF) continue;
+      const diff = Math.abs(s - alvoUnidades);
+      if (diff < melhorDiff){
+        melhorDiff = diff;
+        melhorSoma = s;
+      }
+    }
+    if (melhorSoma === -1){
+      // não bate nem o piso da margem — usa o máximo possível com o estoque disponível
+      for (let s = tetoUnidades; s >= 0; s--){
+        if (dp[s] !== INF){ melhorSoma = s; break; }
+      }
+    }
+
+    const usadas = [];
+    let s = melhorSoma;
+    while (s > 0 && itemUsado[s] !== -1){
+      usadas.push(pool[itemUsado[s]]);
+      s = somaAnterior[s];
+    }
+
+    const total = usadas.reduce((acc, u) => acc + u.pesoUnit, 0);
+    return { usadas, total };
+  }
+
+  function selecionarBobinasComVolumeFixo(pool, pesoAlvo, lower, upper, capacidadeTotalMM){
+    // a quantidade de caixas (volume) é imutável — vem da cotação e não pode mudar.
+    // então otimiza o peso, mas nunca pode escolher mais bobinas do que cabe nesse volume.
+    let poolAtual = [...pool];
+    let melhor = selecionarBobinasParaPeso(poolAtual, pesoAlvo, lower, upper);
+
+    if (!(capacidadeTotalMM > 0)) return melhor; // sem caixa adicionada, não dá pra restringir por volume
+
+    const espacoUsado = (r) => r.usadas.reduce((s, u) => s + (u.larg || 0), 0);
+    let tentativas = 0;
+    while (espacoUsado(melhor) > capacidadeTotalMM && tentativas < pool.length){
+      // tira do jogo a bobina selecionada mais larga (a que mais pesa no volume) e reotimiza o resto
+      const usadasOrdenadas = [...melhor.usadas].sort((a, b) => (b.larg || 0) - (a.larg || 0));
+      const pior = usadasOrdenadas[0];
+      if (!pior) break;
+      poolAtual = poolAtual.filter(u => u !== pior);
+      melhor = selecionarBobinasParaPeso(poolAtual, pesoAlvo, lower, upper);
+      tentativas++;
+    }
+    return melhor;
+  }
+
+  function calcularFechamento(pesoAlvo){
+    const upper = pesoAlvo + MARGEM_FRETE;
+    const lower = pesoAlvo - MARGEM_FRETE;
+
+    // desmonta cada material adicionado em unidades individuais (1 bobina cada)
+    let pool = [];
+    items.filter(it => it.kind === 'material').forEach(it => {
+      const pesoUnit = it.peso / it.qtd;
+      for (let i = 0; i < it.qtd; i++){
+        pool.push({ itemId: it.id, tipo: it.tipo, larg: it.larg, comp: it.comp, pesoUnit });
+      }
+    });
+
+    // monta os "bins" a partir das caixas reais que já foram adicionadas — o volume é fixo,
+    // definido pelo usuário pra cotação, e não pode ser alterado pelo sistema.
+    const bins = [];
+    items.filter(it => it.kind === 'caixa').forEach(it => {
+      for (let i = 0; i < it.qtd; i++){
+        bins.push({ tipo: it.tipo, usado: 0, itens: [] });
+      }
+    });
+    const capacidadeTotalMM = bins.length * ALTURA_MAX_CAIXA;
+
+    const { usadas, total } = selecionarBobinasComVolumeFixo(pool, pesoAlvo, lower, upper, capacidadeTotalMM);
+
+    const usadasIds = new Set(usadas);
+    const sobrouPool = pool.filter(u => !usadasIds.has(u));
+
+    // agrupa o que foi usado, por item de origem (pra mostrar "usado X de Y")
+    const porItem = {};
+    usadas.forEach(u => { porItem[u.itemId] = (porItem[u.itemId] || 0) + 1; });
+
+    // ---- distribui as bobinas selecionadas nas caixas já adicionadas em "Adicionar caixa" ----
+    // empacota espalhando pelas caixas (round-robin), não enchendo uma caixa de cada vez.
+    // com 14 bobinas e 14 caixas, por exemplo, cada caixa recebe exatamente 1 bobina.
+    const paraEmpacotar = [...usadas].sort((a, b) => (b.larg || 0) - (a.larg || 0));
+    const semCaixa = [];
+    let ponteiro = 0;
+    paraEmpacotar.forEach(u => {
+      const larg = u.larg || 0;
+      let bin = null;
+      for (let tentativas = 0; tentativas < bins.length; tentativas++){
+        const candidata = bins[ponteiro % bins.length];
+        if (candidata.usado + larg <= ALTURA_MAX_CAIXA){
+          bin = candidata;
+          break;
+        }
+        ponteiro++;
+      }
+      if (bin){
+        bin.usado += larg;
+        bin.itens.push(u);
+        ponteiro++; // próxima bobina começa procurando a partir da próxima caixa
+      } else {
+        semCaixa.push(u);
+      }
+    });
+
+    const binsUsados = bins.filter(b => b.itens.length > 0);
+    const binsVazios = bins.length - binsUsados.length;
+
+    const dentroMargem = total >= lower && total <= upper;
+    const estoqueInsuficiente = total < lower && sobrouPool.length === 0;
+
+    return {
+      total, upper, lower, porItem, dentroMargem, estoqueInsuficiente,
+      poolVazio: pool.length === 0,
+      bins, binsUsados, binsVazios, semCaixa, sobrouPool,
+      totalCaixasAdicionadas: bins.length
+    };
+  }
+
+  function agruparItensDoBin(itens){
+    const grupos = {};
+    itens.forEach(u => {
+      const key = `${u.tipo}__${u.larg || 0}`;
+      if (!grupos[key]) grupos[key] = { tipo: u.tipo, larg: u.larg || 0, qtd: 0 };
+      grupos[key].qtd += 1;
+    });
+    return Object.values(grupos);
+  }
+
+  function renderFechamento(pesoAlvo){
+    if (!(pesoAlvo > 0)){
+      els.fecharResult.innerHTML = '<p class="fechar-empty">Defina a meta de peso lá em cima primeiro.</p>';
+      return;
+    }
+    const r = calcularFechamento(pesoAlvo);
+
+    if (r.poolVazio){
+      els.fecharResult.innerHTML = '<p class="fechar-empty">Nenhuma bobina adicionada em "Adicionar material" ainda.</p>';
+      return;
+    }
+
+    let html = '';
+    html += `<div class="fechar-headline">
+      <div><span class="peso">${fmt(r.total)} kg</span></div>
+      <span class="fechar-tag ${r.dentroMargem ? 'ok' : 'bad'}">${r.dentroMargem ? 'dentro da margem' : 'fora da margem'}</span>
+    </div>`;
+
+    if (r.estoqueInsuficiente){
+      html += `<p class="fechar-empty" style="color:var(--red);">Estoque insuficiente pra chegar na margem (mínimo ${fmt(r.lower)} kg).</p>`;
+    }
+
+    html += `<p class="fechar-section-title">Caixas (${r.binsUsados.length} de ${r.totalCaixasAdicionadas} em uso)</p>`;
+    if (r.totalCaixasAdicionadas === 0){
+      html += '<p class="fechar-empty" style="color:var(--red);">Nenhuma caixa adicionada ainda em "Adicionar caixa".</p>';
+    } else if (r.binsUsados.length === 0){
+      html += '<p class="fechar-empty">Nenhuma bobina selecionada pra distribuir.</p>';
+    } else {
+      html += r.binsUsados.map(b => {
+        const idxGlobal = r.bins.indexOf(b) + 1;
+        const grupos = agruparItensDoBin(b.itens);
+        const descricao = grupos.map(g => `${g.tipo} ${g.larg}mm ×${g.qtd}`).join(', ');
+        return `<div class="fechar-line">
+          <span class="label">Caixa ${idxGlobal} (${b.tipo})</span>
+          <span class="detail">${descricao}</span>
+        </div>`;
+      }).join('');
+    }
+
+    if (r.semCaixa.length > 0){
+      html += `<p class="fechar-empty" style="color:var(--red); margin-top:8px;">
+        ${r.semCaixa.length} bobina${r.semCaixa.length === 1 ? '' : 's'} não coube${r.semCaixa.length === 1 ? '' : 'ram'} no volume de ${r.totalCaixasAdicionadas} caixa${r.totalCaixasAdicionadas === 1 ? '' : 's'} e ficaram de fora desse frete.
+      </p>`;
+    }
+
+    els.fecharResult.innerHTML = html;
+  }
+
+  let fechamentoJaCalculado = false;
+
+  els.fecharBtn.addEventListener('click', () => {
+    const pesoAlvo = parseFloat(els.goal.value);
+    fechamentoJaCalculado = true;
+    renderFechamento(pesoAlvo);
+  });
+
+  function agruparRestantes(units){
+    const grupos = {};
+    units.forEach(u => {
+      const key = `${u.tipo}__${u.larg}__${u.comp}`;
+      if (!grupos[key]) grupos[key] = { tipo: u.tipo, larg: u.larg, comp: u.comp, qtd: 0 };
+      grupos[key].qtd += 1;
+    });
+    return Object.values(grupos);
+  }
+
+  els.exportBtn.addEventListener('click', () => {
+    if (typeof XLSX === 'undefined'){
+      alert('A biblioteca de exportação não carregou. Verifique sua conexão e tente de novo.');
+      return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const goal = parseFloat(els.goal.value) || 0;
+
+    // aba materiais
+    const matRows = [['Tipo', 'Quantidade', 'Largura (mm)', 'Comprimento (mm)', 'm²', 'Peso (kg)']];
+    const materiais = items.filter(it => it.kind === 'material');
+    let pesoMat = 0;
+    materiais.forEach(it => {
+      matRows.push([it.tipo, it.qtd, it.larg, it.comp, Number(it.m2.toFixed(2)), Number(it.peso.toFixed(2))]);
+      pesoMat += it.peso;
+    });
+    matRows.push(['', '', '', '', 'TOTAL', Number(pesoMat.toFixed(2))]);
+    const wsMat = XLSX.utils.aoa_to_sheet(matRows);
+    wsMat['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 17 }, { wch: 9 }, { wch: 11 }];
+    XLSX.utils.book_append_sheet(wb, wsMat, 'Materiais');
+
+    // aba caixas
+    const cxRows = [['Tamanho', 'Quantidade', 'Peso unitário (kg)', 'Peso total (kg)']];
+    const caixas = items.filter(it => it.kind === 'caixa');
+    let pesoCx = 0;
+    caixas.forEach(it => {
+      cxRows.push([it.tipo, it.qtd, BOX_WEIGHTS[it.tipo], Number(it.peso.toFixed(2))]);
+      pesoCx += it.peso;
+    });
+    cxRows.push(['', '', 'TOTAL', Number(pesoCx.toFixed(2))]);
+    const wsCx = XLSX.utils.aoa_to_sheet(cxRows);
+    wsCx['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 18 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsCx, 'Caixas');
+
+    // aba alocação e aba de bobinas restantes — calculadas juntas a partir do fechamento
+    const alocRows = [['Caixa #', 'Tipo Caixa', 'Tipo Bobina', 'Largura (mm)', 'Quantidade']];
+    const restRows = [['Tipo', 'Largura (mm)', 'Comprimento (mm)', 'Quantidade restante']];
+    if (goal > 0){
+      const r = calcularFechamento(goal);
+      r.binsUsados.forEach(b => {
+        const idxCaixa = r.bins.indexOf(b) + 1;
+        agruparItensDoBin(b.itens).forEach(g => {
+          alocRows.push([idxCaixa, b.tipo, g.tipo, g.larg, g.qtd]);
+        });
+      });
+      if (r.binsUsados.length === 0){
+        alocRows.push(['-', '-', 'Nenhuma bobina distribuída', '-', '-']);
+      }
+      const restantes = [...r.sobrouPool, ...r.semCaixa];
+      agruparRestantes(restantes).forEach(g => restRows.push([g.tipo, g.larg, g.comp, g.qtd]));
+      if (restantes.length === 0){
+        restRows.push(['-', '-', '-', 0]);
+      } else {
+        restRows.push(['', '', 'TOTAL', restantes.length]);
+      }
+    } else {
+      alocRows.push(['-', '-', 'Defina a meta de peso pra calcular a distribuição', '-', '-']);
+      restRows.push(['-', '-', 'Defina a meta de peso pra calcular', '-']);
+    }
+    const wsAloc = XLSX.utils.aoa_to_sheet(alocRows);
+    wsAloc['!cols'] = [{ wch: 9 }, { wch: 11 }, { wch: 20 }, { wch: 14 }, { wch: 11 }];
+    XLSX.utils.book_append_sheet(wb, wsAloc, 'Alocação');
+
+    const wsRest = XLSX.utils.aoa_to_sheet(restRows);
+    wsRest['!cols'] = [{ wch: 10 }, { wch: 14 }, { wch: 17 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, wsRest, 'Bobinas Restantes');
+
+    // aba resumo
+    const totalGeral = items.reduce((s, it) => s + it.peso, 0);
+    const resumoRows = [
+      ['Meta de peso (kg)', goal],
+      ['Peso total (kg)', Number(totalGeral.toFixed(2))],
+      ['Diferença (kg)', Number((goal - totalGeral).toFixed(2))],
+    ];
+    const wsResumo = XLSX.utils.aoa_to_sheet(resumoRows);
+    wsResumo['!cols'] = [{ wch: 20 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
+    XLSX.writeFile(wb, 'calculadora-peso.xlsx');
+  });
+
+  updatePreview();
+  updateCaixaPreview();
+  render();
+</script>
+</body>
+</html>
