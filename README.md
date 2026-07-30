@@ -1,3 +1,4 @@
+<img width="955" height="971" alt="image" src="https://github.com/user-attachments/assets/45ee919e-b472-4af8-93a9-3a0428392532" />
 MRX - Calculadora de Peso — Carga
 Uma ferramenta web interativa para calcular, monitorar e otimizar o peso de cargas logísticas industriais. O sistema permite adicionar materiais (bobinas) e caixas, além de calcular a melhor distribuição possível dos itens dentro das embalagens para atingir uma meta específica de peso de frete.
 
